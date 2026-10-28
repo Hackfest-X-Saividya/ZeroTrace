@@ -24,7 +24,8 @@ const rules = [
     id: "JS003",
     title: "Hardcoded credential-like value",
     severity: "High",
-    pattern: /\b(?:api[_-]?key|secret|password|access[_-]?token)\s*[:=]\s*["'][^"']{6,}["']/gi,
+    pattern:
+      /\b(?:api[_-]?key|secret|password|access[_-]?token)\s*[:=]\s*["'][^"']{6,}["']/gi,
     explanation:
       "A hardcoded value appears to contain a credential. This pattern alone cannot confirm whether it is genuine.",
     recommendation:
@@ -36,7 +37,6 @@ export function scanCode(source) {
   const findings = [];
 
   for (const rule of rules) {
-    // Start each scan with a fresh regular expression.
     const pattern = new RegExp(rule.pattern.source, rule.pattern.flags);
     let match;
 
@@ -53,6 +53,7 @@ export function scanCode(source) {
         recommendation: rule.recommendation
       });
 
+      // Prevent an infinite loop if a future rule matches an empty string.
       if (match[0].length === 0) {
         pattern.lastIndex++;
       }
@@ -64,7 +65,8 @@ export function scanCode(source) {
 
 function redactEvidence(match, ruleId) {
   if (ruleId === "JS003") {
-    return match.replace(/(["'])[^"']*\1/g, '"[REDACTED]"');
+    // Hide quoted credential values before displaying evidence.
+    return match.replace(/(["'])[^"']{6,}\1/g, '"[REDACTED]"');
   }
 
   return match;
