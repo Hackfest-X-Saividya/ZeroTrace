@@ -10,6 +10,15 @@ const logoutBtn = document.getElementById("logoutBtn");
 const showLoginTab = document.getElementById("showLoginTab");
 const showSignupTab = document.getElementById("showSignupTab");
 
+const securityMemoryPanel = document.getElementById("securityMemoryPanel");
+const refreshMemoryBtn = document.getElementById("refreshMemoryBtn");
+const memoryStatus = document.getElementById("memoryStatus");
+const memoryTotalScans = document.getElementById("memoryTotalScans");
+const memoryLatestFindings = document.getElementById("memoryLatestFindings");
+const memoryRecurringCount = document.getElementById("memoryRecurringCount");
+const memoryRecurringList = document.getElementById("memoryRecurringList");
+const memoryTrendList = document.getElementById("memoryTrendList");
+
 const scanHistoryPanel = document.getElementById("scanHistoryPanel");
 const refreshHistoryBtn = document.getElementById("refreshHistoryBtn");
 const scanHistoryList = document.getElementById("scanHistoryList");
@@ -30,6 +39,19 @@ const aiFixStatus = document.getElementById("aiFixStatus");
 const aiFixPanel = document.getElementById("aiFixPanel");
 const aiFixSummary = document.getElementById("aiFixSummary");
 const fixedCodeOutput = document.getElementById("fixedCodeOutput");
+
+const repairReceipt = document.getElementById("repairReceipt");
+const receiptGeneratedAt = document.getElementById("receiptGeneratedAt");
+const receiptStatus = document.getElementById("receiptStatus");
+const receiptResolvedCount = document.getElementById("receiptResolvedCount");
+const receiptRemainingCount = document.getElementById("receiptRemainingCount");
+const receiptNewCount = document.getElementById("receiptNewCount");
+const receiptResolvedList = document.getElementById("receiptResolvedList");
+const receiptRemainingList = document.getElementById("receiptRemainingList");
+const receiptNewList = document.getElementById("receiptNewList");
+const receiptChecksList = document.getElementById("receiptChecksList");
+const downloadReceiptBtn = document.getElementById("downloadReceiptBtn");
+
 const applyFixBtn = document.getElementById("applyFixBtn");
 const copyFixBtn = document.getElementById("copyFixBtn");
 const downloadFixBtn = document.getElementById("downloadFixBtn");
@@ -375,6 +397,7 @@ aiFixBtn.addEventListener("click", async () => {
     proposedFix = data.fixedCode;
 fixedCodeOutput.value = data.fixedCode;
 aiFixSummary.textContent = data.summary;
+renderRepairReceipt(data.repairReceipt);
 
 originalCodeOutput.value = originalCode;
 comparisonFixedCode.value = data.fixedCode;
@@ -448,6 +471,8 @@ async function refreshAuthState() {
     });
 
     if (!response.ok) {
+      securityMemoryPanel.hidden = true;
+memoryStatus.textContent = "";
       authForms.hidden = false;
       loggedInPanel.hidden = true;
       scannerWorkspace.hidden = true;
@@ -463,8 +488,12 @@ async function refreshAuthState() {
     loggedInPanel.hidden = false;
     scannerWorkspace.hidden = false;
     scanHistoryPanel.hidden = false;
+securityMemoryPanel.hidden = false;
 
-    loggedInEmail.textContent = data.user.email;
+loggedInEmail.textContent = data.user.email;
+
+await loadScanHistory();
+await loadSecurityMemory();
     authStatus.textContent = "You're logged in.";
 
     await loadScanHistory();
@@ -621,3 +650,179 @@ async function loadScanHistory() {
 }
 
 refreshHistoryBtn.addEventListener("click", loadScanHistory);
+
+async function loadSecurityMemory() {
+  memoryStatus.textContent = "Loading security insights...";
+  memoryRecurringList.replaceChildren();
+  memoryTrendList.replaceChildren();
+
+  try {
+    const response = await fetch("/api/security-memory", {
+      credentials: "same-origin"
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || "Unable to load security insights.");
+    }
+
+    memoryTotalScans.textContent = String(data.totalScans);
+    memoryLatestFindings.textContent = String(data.latestFindings);
+    memoryRecurringCount.textContent = String(data.recurringFindings.length);
+
+    if (data.recurringFindings.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "memory-empty";
+      empty.textContent = "No recurring patterns detected in your recent scans.";
+      memoryRecurringList.appendChild(empty);
+    } else {
+      data.recurringFindings.forEach((finding) => {
+        const item = document.createElement("article");
+        item.className = "memory-item";
+
+        const title = document.createElement("strong");
+        title.textContent = finding.fingerprint;
+
+        const detail = document.createElement("p");
+        detail.textContent =
+          `Detected in ${finding.scanCount} separate scans`;
+
+        item.append(title, detail);
+        memoryRecurringList.appendChild(item);
+      });
+    }
+
+    if (!data.trend.length) {
+      const empty = document.createElement("p");
+      empty.className = "memory-empty";
+      empty.textContent = "Run a scan to start building your security trend.";
+      memoryTrendList.appendChild(empty);
+    } else {
+      data.trend.forEach((scan, index) => {
+        const item = document.createElement("article");
+        item.className = "memory-trend-item";
+
+        const heading = document.createElement("strong");
+        heading.textContent = `Scan ${index + 1}`;
+
+        const date = document.createElement("p");
+        date.textContent = new Date(scan.scannedAt).toLocaleString();
+
+        const summary = document.createElement("p");
+        summary.textContent =
+          `${scan.totalFindings} finding(s) · ${scan.scannedCharacters} characters scanned`;
+
+        item.append(heading, date, summary);
+        memoryTrendList.appendChild(item);
+      });
+    }
+
+    memoryStatus.textContent = "";
+  } catch (error) {
+    memoryStatus.textContent = error.message;
+  }
+}
+
+refreshMemoryBtn.addEventListener("click", loadSecurityMemory);
+
+function renderRepairReceipt(receipt) {
+  if (!receipt || typeof receipt !== "object") {
+    repairReceipt.hidden = true;
+    return;
+  }
+
+  receiptGeneratedAt.textContent =
+    `Generated: ${new Date(receipt.generatedAt).toLocaleString()}`;
+
+  receiptResolvedCount.textContent = String(receipt.resolvedFindingCount ?? 0);
+  receiptRemainingCount.textContent = String(receipt.remainingFindingCount ?? 0);
+  receiptNewCount.textContent = String(receipt.newFindingCount ?? 0);
+
+  function renderFindingList(container, findings, emptyMessage) {
+    container.replaceChildren();
+
+    if (!Array.isArray(findings) || findings.length === 0) {
+      const item = document.createElement("li");
+      item.textContent = emptyMessage;
+      container.appendChild(item);
+      return;
+    }
+
+    findings.forEach((finding) => {
+      const item = document.createElement("li");
+      item.textContent =
+        `${finding.severity || "Unknown"} — ${finding.title || "Untitled finding"} (Line ${finding.line ?? "?"})`;
+      container.appendChild(item);
+    });
+  }
+
+  renderFindingList(
+    receiptResolvedList,
+    receipt.resolvedFindings,
+    "No findings were resolved by the configured scanners."
+  );
+
+  renderFindingList(
+    receiptRemainingList,
+    receipt.remainingFindings,
+    "No original findings remain detectable."
+  );
+
+  renderFindingList(
+    receiptNewList,
+    receipt.newFindings,
+    "No new findings were detected."
+  );
+
+  receiptChecksList.replaceChildren();
+
+  (Array.isArray(receipt.checksPerformed) ? receipt.checksPerformed : [])
+    .forEach((check) => {
+      const item = document.createElement("li");
+      item.textContent = check;
+      receiptChecksList.appendChild(item);
+    });
+
+  receiptStatus.textContent =
+    "Results reflect configured scanner rules, not a guarantee of security.";
+
+  repairReceipt.hidden = false;
+}
+
+downloadReceiptBtn.addEventListener("click", () => {
+  if (repairReceipt.hidden) return;
+
+  const report = [
+    "ZeroTrace — Security Repair Receipt",
+    receiptGeneratedAt.textContent,
+    "",
+    `Resolved findings: ${receiptResolvedCount.textContent}`,
+    `Remaining findings: ${receiptRemainingCount.textContent}`,
+    `New findings: ${receiptNewCount.textContent}`,
+    "",
+    "Resolved findings:",
+    ...Array.from(receiptResolvedList.children, (item) => `- ${item.textContent}`),
+    "",
+    "Remaining findings:",
+    ...Array.from(receiptRemainingList.children, (item) => `- ${item.textContent}`),
+    "",
+    "New findings:",
+    ...Array.from(receiptNewList.children, (item) => `- ${item.textContent}`),
+    "",
+    "Checks performed:",
+    ...Array.from(receiptChecksList.children, (item) => `- ${item.textContent}`),
+    "",
+    receiptStatus.textContent
+  ].join("\n");
+
+  const blob = new Blob([report], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = "zerotrace-security-repair-receipt.txt";
+  link.click();
+
+  URL.revokeObjectURL(url);
+});

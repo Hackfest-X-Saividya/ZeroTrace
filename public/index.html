@@ -155,6 +155,56 @@
   <div id="scanHistoryList"></div>
 </section>
 
+<section id="securityMemoryPanel" class="panel security-memory-panel" hidden>
+  <div class="panel-heading">
+    <div>
+      <span class="section-label">SECURITY INSIGHTS</span>
+      <h2>Security Memory</h2>
+      <p>Track recurring findings and changes across your recent scans.</p>
+    </div>
+    <button id="refreshMemoryBtn" class="secondary-btn" type="button">
+      Refresh insights
+    </button>
+  </div>
+
+  <p id="memoryStatus" class="status-message" role="status" aria-live="polite"></p>
+
+  <div class="memory-stats">
+    <article class="memory-stat-card">
+      <span class="memory-stat-label">Recent scans</span>
+      <strong id="memoryTotalScans">0</strong>
+    </article>
+
+    <article class="memory-stat-card">
+      <span class="memory-stat-label">Latest findings</span>
+      <strong id="memoryLatestFindings">0</strong>
+    </article>
+
+    <article class="memory-stat-card">
+      <span class="memory-stat-label">Recurring patterns</span>
+      <strong id="memoryRecurringCount">0</strong>
+    </article>
+  </div>
+
+  <div class="memory-content">
+    <div class="memory-subsection">
+      <h3>Recurring findings</h3>
+      <p class="memory-description">
+        Patterns detected in at least two separate scans.
+      </p>
+      <div id="memoryRecurringList"></div>
+    </div>
+
+    <div class="memory-subsection">
+      <h3>Scan trend</h3>
+      <p class="memory-description">
+        Your latest scan results, ordered from oldest to newest.
+      </p>
+      <div id="memoryTrendList"></div>
+    </div>
+  </div>
+</section>
+
 
     <section class="hero">
       <div class="eyebrow">STATIC ANALYSIS · AST + SECURITY RULES</div>
@@ -243,6 +293,62 @@
     </div>
   </div>
 </div>
+
+<div id="repairReceipt" class="repair-receipt" hidden>
+  <div class="repair-receipt-heading">
+    <div>
+      <span class="section-label">PROOFLAB</span>
+      <h3>Security Repair Receipt</h3>
+      <p id="receiptGeneratedAt"></p>
+    </div>
+    <button id="downloadReceiptBtn" class="secondary-btn" type="button">
+      Download receipt
+    </button>
+  </div>
+
+  <p id="receiptStatus" role="status" aria-live="polite"></p>
+
+  <div class="receipt-stats">
+    <article class="receipt-stat">
+      <span>Resolved</span>
+      <strong id="receiptResolvedCount">0</strong>
+    </article>
+    <article class="receipt-stat">
+      <span>Remaining</span>
+      <strong id="receiptRemainingCount">0</strong>
+    </article>
+    <article class="receipt-stat">
+      <span>New findings</span>
+      <strong id="receiptNewCount">0</strong>
+    </article>
+  </div>
+
+  <div class="receipt-findings">
+    <div>
+      <h4>Resolved findings</h4>
+      <ul id="receiptResolvedList"></ul>
+    </div>
+    <div>
+      <h4>Remaining findings</h4>
+      <ul id="receiptRemainingList"></ul>
+    </div>
+    <div>
+      <h4>New findings</h4>
+      <ul id="receiptNewList"></ul>
+    </div>
+  </div>
+
+  <div class="receipt-checks">
+    <h4>Checks performed</h4>
+    <ul id="receiptChecksList"></ul>
+  </div>
+
+  <p class="receipt-disclaimer">
+    This receipt reports results from configured scanner rules. It does not
+    guarantee that the proposed code is secure. Review and test all changes.
+  </p>
+</div>
+
 </section>
       </div>
 

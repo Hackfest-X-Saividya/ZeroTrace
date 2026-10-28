@@ -338,19 +338,30 @@ app.post("/api/scan", requireAuth, async (req, res) => {
     const db = getDatabase();
 
     // Save only scan metadata and findings, never the submitted source code.
-    await db.collection("scanHistory").insertOne({
-        userId: req.session.userId,
-      scannedAt: new Date(),
-      scannedCharacters: code.length,
-      totalFindings: findings.length,
-      findings: findings.map((finding) => ({
-        title: finding.title,
-        severity: finding.severity,
-        line: finding.line,
-        explanation: finding.explanation,
-        recommendation: finding.recommendation
-      }))
-    });
+await db.collection("scanHistory").insertOne({
+  userId: req.session.userId,
+  scannedAt: new Date(),
+  scannedCharacters: code.length,
+  totalFindings: findings.length,
+  findings: findings.map((finding) => ({
+    fingerprint: [
+      finding.ruleId || finding.id || finding.title,
+      finding.title,
+      finding.severity
+    ]
+      .filter(Boolean)
+      .join("|")
+      .toLowerCase(),
+
+    ruleId: finding.ruleId || finding.id || null,
+    title: finding.title,
+    severity: finding.severity,
+    line: finding.line,
+    explanation: finding.explanation,
+    recommendation: finding.recommendation
+  }))
+});
+
   } catch (error) {
     console.error("Failed to save scan history:", error.message);
 
@@ -467,31 +478,208 @@ try {
         message: "Gemini's response did not contain valid proposed code."
       });
     }
+const originalValidation = analyzeAST(code);
+if (!originalValidation.success) {
+  return res.status(400).json({
+    success: false,
+    message: "The original code has a JavaScript syntax error and cannot be compared reliably."
+  });
+}
 
-    const validation = analyzeAST(result.fixedCode);
+const originalFindings = [
+  ...originalValidation.findings,
+  ...scanCode(code)
+];
 
-    if (!validation.success) {
-      return res.status(502).json({
-        success: false,
-        message: "The proposed code has a JavaScript syntax error. Please try again."
-      });
+const validation = analyzeAST(result.fixedCode);
+
+if (!validation.success) {
+  return res.status(502).json({
+    success: false,
+    message: "The proposed code has a JavaScript syntax error. Please try again."
+  });
+}
+
+const validationFindings = [
+  ...validation.findings,
+  ...scanCode(result.fixedCode)
+];
+
+
+function findingKey(finding) {
+  return [
+    finding.ruleId || finding.id || finding.title,
+    finding.title,
+    finding.severity
+  ]
+    .filter(Boolean)
+    .join("|")
+    .toLowerCase();
+}
+
+function deduplicateFindings(findings) {
+  const unique = new Map();
+
+  for (const finding of findings) {
+    const key = findingKey(finding);
+
+    if (!unique.has(key)) {
+      unique.set(key, finding);
     }
+  }
+
+  return [...unique.values()];
+}
+
+const uniqueOriginalFindings = deduplicateFindings(originalFindings);
+const uniqueValidationFindings = deduplicateFindings(validationFindings);
+
+const originalKeys = new Set(
+  uniqueOriginalFindings.map(findingKey)
+);
+
+const fixedKeys = new Set(
+  uniqueValidationFindings.map(findingKey)
+);
+
+const resolvedFindings = uniqueOriginalFindings.filter(
+  (finding) => !fixedKeys.has(findingKey(finding))
+);
+
+const remainingFindings = uniqueOriginalFindings.filter(
+  (finding) => fixedKeys.has(findingKey(finding))
+);
+
+const newFindings = uniqueValidationFindings.filter(
+  (finding) => !originalKeys.has(findingKey(finding))
+);
+return res.json({
+  success: true,
+  fixedCode: result.fixedCode,
+  summary: result.summary,
+  validationFindings,
+  repairReceipt: {
+    generatedAt: new Date().toISOString(),
+    originalFindingCount: originalFindings.length,
+    remainingFindingCount: remainingFindings.length,
+    resolvedFindingCount: resolvedFindings.length,
+    newFindingCount: newFindings.length,
+
+    resolvedFindings,
+    remainingFindings,
+    newFindings,
+
+    checksPerformed: [
+      "Original code AST analysis",
+      "Original code regex scanning",
+      "Proposed code AST analysis",
+      "Proposed code regex scanning"
+    ],
+
+    limitations: [
+      "A finding disappearing means the configured scanners no longer detected it; it does not prove the code is secure.",
+      "Finding comparisons use rule identifiers, titles, and severity where available.",
+      "Only the configured scanner rules were evaluated."
+    ]
+  }
+});
+} catch (error) {
+  console.error("Gemini request failed:", error?.message ?? error);
+const errorMessage = String(error?.message ?? "");
+  if (
+    error?.status === 429 ||
+    error?.code === 429 ||
+    errorMessage.includes("RESOURCE_EXHAUSTED") ||
+    errorMessage.includes("quota")
+  ) {
+    return res.status(429).json({
+      success: false,
+      message:
+        "Gemini's usage quota has been reached. Your code scan still works, but AI Fix is temporarily unavailable. Please try again after your quota resets."
+    });
+  }
+
+  return res.status(502).json({
+    success: false,
+    message: "Gemini is temporarily unavailable. Please try again later."
+  });
+}
+
+});
+
+app.get("/api/security-memory", requireAuth, async (req, res) => {
+  try {
+    const db = getDatabase();
+
+    const history = await db
+      .collection("scanHistory")
+      .find({ userId: req.session.userId })
+      .project({ _id: 0, userId: 0 })
+      .sort({ scannedAt: -1 })
+      .limit(50)
+      .toArray();
+
+    const latestScan = history[0] || null;
+    const findingCounts = new Map();
+
+    for (const scan of history) {
+      const scanFingerprints = new Set();
+
+      for (const finding of scan.findings || []) {
+        const fingerprint =
+          finding.fingerprint ||
+          [
+            finding.ruleId || finding.title,
+            finding.title,
+            finding.severity
+          ]
+            .filter(Boolean)
+            .join("|")
+            .toLowerCase();
+
+        if (fingerprint) {
+          scanFingerprints.add(fingerprint);
+        }
+      }
+
+      for (const fingerprint of scanFingerprints) {
+        findingCounts.set(
+          fingerprint,
+          (findingCounts.get(fingerprint) || 0) + 1
+        );
+      }
+    }
+
+    const recurringFindings = [...findingCounts.entries()]
+      .filter(([, count]) => count >= 2)
+      .map(([fingerprint, scanCount]) => ({
+        fingerprint,
+        scanCount
+      }))
+      .sort((a, b) => b.scanCount - a.scanCount);
+
+    const trend = history
+      .slice()
+      .reverse()
+      .map((scan) => ({
+        scannedAt: scan.scannedAt,
+        totalFindings: scan.totalFindings,
+        scannedCharacters: scan.scannedCharacters
+      }));
 
     return res.json({
       success: true,
-      fixedCode: result.fixedCode,
-      summary: result.summary,
-      validationFindings: [
-        ...validation.findings,
-        ...scanCode(result.fixedCode)
-      ]
+      totalScans: history.length,
+      latestFindings: latestScan?.totalFindings ?? 0,
+      recurringFindings,
+      trend
     });
   } catch (error) {
-    console.error("AI-fix request failed:", error);
+    console.error("Security Memory error:", error.message);
 
-    return res.status(502).json({
+    return res.status(500).json({
       success: false,
-      message: "Gemini could not generate a fix. Check your API configuration and try again."
+      message: "Unable to retrieve Security Memory."
     });
   }
 });
