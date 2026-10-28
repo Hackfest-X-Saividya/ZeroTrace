@@ -1,0 +1,94 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b1020">
+  <title>ZeroTrace | Code Security Analyzer</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/script.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">
+      <span class="brand-icon">Z</span>
+      <span>ZeroTrace<small>CODE SECURITY ANALYZER</small></span>
+    </a>
+    <span class="status"><span class="status-dot"></span> Local scanner</span>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <div class="eyebrow">STATIC ANALYSIS · AST + SECURITY RULES</div>
+      <h1>Find risky code <span>before it ships.</span></h1>
+      <p>Analyze JavaScript for potentially unsafe patterns, understand the risks, and get practical recommendations.</p>
+    </section>
+
+    <section class="workspace">
+      <div class="panel editor-panel">
+        <div class="panel-heading">
+          <div>
+            <span class="section-label">SOURCE CODE</span>
+            <h2>Code editor</h2>
+          </div>
+          <button id="sampleBtn" class="secondary-btn" type="button">Load sample</button>
+        </div>
+
+        <label for="codeInput">JavaScript to analyze</label>
+        <textarea id="codeInput" spellcheck="false" placeholder="Paste JavaScript source code here..."></textarea>
+
+        <div class="editor-footer">
+          <span id="charCount">0 characters</span>
+          <span>JavaScript · Max 50,000 characters</span>
+        </div>
+
+        <button id="scanBtn" class="primary-btn" type="button">
+          <span>⌕</span> Analyze source code
+        </button>
+        <p id="scanStatus" class="status-message" role="status" aria-live="polite"></p>
+      </div>
+
+      <div class="panel results-panel">
+        <div class="panel-heading">
+          <div>
+            <span class="section-label">ANALYSIS REPORT</span>
+            <h2>Security findings</h2>
+          </div>
+          <span id="resultBadge" class="count-badge">Not scanned</span>
+        </div>
+
+        <div class="summary-grid">
+          <div class="summary-card">
+            <span>Total findings</span>
+            <strong id="totalCount">—</strong>
+          </div>
+          <div class="summary-card">
+            <span>High severity</span>
+            <strong id="highCount" class="high-text">—</strong>
+          </div>
+          <div class="summary-card">
+            <span>Medium severity</span>
+            <strong id="mediumCount" class="medium-text">—</strong>
+          </div>
+        </div>
+
+        <div id="results" class="results-list">
+          <div class="empty-state">
+            <div class="empty-icon">⌕</div>
+            <h3>Ready to analyze</h3>
+            <p>Load the sample or paste your own JavaScript, then start an analysis to see findings here.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="notice">
+      <strong>Important:</strong> Findings are potential risks, not proof of exploitability.
+      Scan only code you own or are authorized to assess. Source code is processed locally by this application.
+    </section>
+
+    <footer>ZeroTrace · Explainable static code analysis</footer>
+  </main>
+</body>
+</html>
