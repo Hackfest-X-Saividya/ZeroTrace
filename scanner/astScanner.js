@@ -1,14 +1,25 @@
 
 import { parse } from "acorn";
 
+const COMMAND_FUNCTIONS = [
+  "exec",
+  "execSync",
+  "spawn",
+  "spawnSync",
+  "execFile",
+  "execFileSync"
+];
+
 export function analyzeAST(source) {
   const findings = [];
+  const importedCommandFunctions = new Set();
+  const requiredCommandObjects = new Set();
   let ast;
 
   try {
     ast = parse(source, {
       ecmaVersion: "latest",
-      sourceType: "script",
+      sourceType: "module",
       locations: true
     });
   } catch (error) {
@@ -26,10 +37,77 @@ export function analyzeAST(source) {
     });
   }
 
+  // First pass: identify command functions imported from child_process.
+  for (const node of ast.body) {
+    if (
+      node.type === "ImportDeclaration" &&
+      ["child_process", "node:child_process"].includes(node.source.value)
+    ) {
+      for (const specifier of node.specifiers) {
+        if (
+          specifier.type === "ImportSpecifier" &&
+          COMMAND_FUNCTIONS.includes(specifier.imported.name)
+        ) {
+          importedCommandFunctions.add(specifier.local.name);
+        }
+
+        if (specifier.type === "ImportNamespaceSpecifier") {
+          requiredCommandObjects.add(specifier.local.name);
+        }
+
+        if (specifier.type === "ImportDefaultSpecifier") {
+          requiredCommandObjects.add(specifier.local.name);
+        }
+      }
+    }
+
+    // CommonJS: const { exec: runCommand } = require("child_process")
+    if (node.type === "VariableDeclaration") {
+      for (const declaration of node.declarations) {
+        const init = declaration.init;
+
+        if (
+          init?.type !== "CallExpression" ||
+          init.callee.type !== "Identifier" ||
+          init.callee.name !== "require" ||
+          init.arguments.length !== 1 ||
+          init.arguments[0].type !== "Literal" ||
+          !["child_process", "node:child_process"].includes(
+            init.arguments[0].value
+          )
+        ) {
+          continue;
+        }
+
+        if (declaration.id.type === "ObjectPattern") {
+          for (const property of declaration.id.properties) {
+            if (
+              property.type === "Property" &&
+              !property.computed &&
+              property.key.type === "Identifier" &&
+              COMMAND_FUNCTIONS.includes(property.key.name)
+            ) {
+              const localName =
+                property.value.type === "Identifier"
+                  ? property.value.name
+                  : property.value.left?.name;
+
+              if (localName) {
+                importedCommandFunctions.add(localName);
+              }
+            }
+          }
+        } else if (declaration.id.type === "Identifier") {
+          requiredCommandObjects.add(declaration.id.name);
+        }
+      }
+    }
+  }
+
   function visit(node) {
     if (!node || typeof node !== "object") return;
 
-    // AST001: Detect eval(...)
+    // AST001: eval(...)
     if (
       node.type === "CallExpression" &&
       node.callee.type === "Identifier" &&
@@ -41,17 +119,16 @@ export function analyzeAST(source) {
         severity: "High",
         evidence: "eval(...)",
         explanation:
-          "Calling eval() executes JavaScript represented as a string. If untrusted input reaches it, an attacker may influence the executed code.",
+          "eval() executes JavaScript represented as a string. Untrusted input may influence the executed code.",
         recommendation:
-          "Avoid eval(). Use explicit parsing or safer alternatives appropriate to the task."
+          "Avoid eval(). Use explicit parsing or safer alternatives."
       });
     }
 
-    // AST002: Detect assignments such as element.innerHTML = ...
+    // AST002: innerHTML = ...
     if (
       node.type === "AssignmentExpression" &&
       node.left.type === "MemberExpression" &&
-      !node.left.computed &&
       node.left.property.name === "innerHTML"
     ) {
       addFinding(node, {
@@ -60,13 +137,13 @@ export function analyzeAST(source) {
         severity: "Medium",
         evidence: "element.innerHTML = ...",
         explanation:
-          "Assigning content to innerHTML can introduce cross-site scripting (XSS) if the content contains untrusted HTML.",
+          "Assigning untrusted HTML to innerHTML may introduce cross-site scripting (XSS).",
         recommendation:
-          "Use textContent for plain text, or sanitize HTML with a trusted sanitizer before insertion."
+          "Use textContent for plain text or sanitize HTML with a trusted sanitizer."
       });
     }
 
-    // AST003: Detect new Function(...)
+    // AST003: new Function(...)
     if (
       node.type === "NewExpression" &&
       node.callee.type === "Identifier" &&
@@ -78,20 +155,20 @@ export function analyzeAST(source) {
         severity: "High",
         evidence: "new Function(...)",
         explanation:
-          "The Function constructor creates executable JavaScript from strings. Dynamically constructed code can be dangerous when influenced by untrusted input.",
+          "The Function constructor creates executable JavaScript from strings.",
         recommendation:
-          "Avoid constructing executable code from strings. Use ordinary functions and explicit data handling."
+          "Avoid constructing executable code from strings."
       });
     }
 
-    // AST004: Detect document.write(...)
+    // AST004: document.write(...)
     if (
       node.type === "CallExpression" &&
       node.callee.type === "MemberExpression" &&
-      !node.callee.computed &&
-      node.callee.property.name === "write" &&
       node.callee.object.type === "Identifier" &&
-      node.callee.object.name === "document"
+      node.callee.object.name === "document" &&
+      !node.callee.computed &&
+      node.callee.property.name === "write"
     ) {
       addFinding(node, {
         id: "AST004",
@@ -99,18 +176,18 @@ export function analyzeAST(source) {
         severity: "Medium",
         evidence: "document.write(...)",
         explanation:
-          "document.write() inserts content into the document. If untrusted input is written as HTML, it may introduce an XSS risk.",
+          "Writing untrusted content into the document may introduce an XSS risk.",
         recommendation:
-          "Prefer DOM methods such as createElement() and textContent, and avoid inserting untrusted HTML."
+          "Prefer safe DOM methods such as createElement() and textContent."
       });
     }
 
-    // AST005: Detect compound assignments such as element.innerHTML += ...
+    // AST005: compound innerHTML assignments.
+    // AST002 already detects the same assignment expression, so avoid a duplicate.
     if (
       node.type === "AssignmentExpression" &&
       node.operator !== "=" &&
       node.left.type === "MemberExpression" &&
-      !node.left.computed &&
       node.left.property.name === "innerHTML"
     ) {
       addFinding(node, {
@@ -119,44 +196,62 @@ export function analyzeAST(source) {
         severity: "Medium",
         evidence: "element.innerHTML += ...",
         explanation:
-          "A compound assignment to innerHTML can insert HTML into the DOM. Untrusted content may create an XSS risk.",
+          "A compound innerHTML assignment may insert untrusted HTML into the DOM.",
         recommendation:
-          "Use textContent for plain text or sanitize any HTML with a trusted sanitizer."
+          "Use textContent for plain text or sanitize HTML with a trusted sanitizer."
       });
     }
 
-    // AST006: Detect potentially risky child_process API calls.
-    if (
-      node.type === "CallExpression" &&
-      node.callee.type === "MemberExpression" &&
-      node.callee.object.type === "Identifier" &&
-      node.callee.object.name === "child_process" &&
-      !node.callee.computed &&
-      ["exec", "execSync", "spawn", "spawnSync", "execFile", "execFileSync"].includes(
-        node.callee.property.name
-      )
-    ) {
-      addFinding(node, {
-        id: "AST006",
-        title: "Potentially risky command execution",
-        severity: "High",
-        evidence: `child_process.${node.callee.property.name}(...)`,
-        explanation:
-          "This call can execute operating-system commands or programs. If untrusted input reaches command arguments, it may create a command-injection risk.",
-        recommendation:
-          "Avoid passing untrusted input to shell commands. Prefer fixed executables, argument arrays, input validation, and shell:false where supported."
-      });
+    // AST006: direct, imported, and namespace command-execution calls.
+    if (node.type === "CallExpression") {
+      let commandName = null;
+      let isCommandCall = false;
+
+      if (
+        node.callee.type === "MemberExpression" &&
+        !node.callee.computed &&
+        node.callee.property.type === "Identifier" &&
+        COMMAND_FUNCTIONS.includes(node.callee.property.name)
+      ) {
+        const object = node.callee.object;
+
+        if (
+          object.type === "Identifier" &&
+          (object.name === "child_process" ||
+            requiredCommandObjects.has(object.name))
+        ) {
+          commandName = node.callee.property.name;
+          isCommandCall = true;
+        }
+      } else if (
+        node.callee.type === "Identifier" &&
+        importedCommandFunctions.has(node.callee.name)
+      ) {
+        commandName = node.callee.name;
+        isCommandCall = true;
+      }
+
+      if (isCommandCall) {
+       
+        addFinding(node, {
+          id: "AST006",
+          title: "Command execution API usage",
+          severity: "Medium",
+          evidence: `${commandName}(...)`,
+          explanation:
+            "This call uses an API capable of executing operating-system commands. This is not necessarily a vulnerability; risk depends on how the command and its arguments are constructed and whether untrusted input can influence them.",
+          recommendation:
+            "Review the command and its arguments. Avoid shell execution with untrusted input; prefer fixed executables, validated arguments, and shell:false where supported."
+        });
+
+      }
     }
-
-
 
     // Recursively inspect child nodes.
     for (const value of Object.values(node)) {
       if (Array.isArray(value)) {
         for (const child of value) {
-          if (child && typeof child.type === "string") {
-            visit(child);
-          }
+          if (child && typeof child.type === "string") visit(child);
         }
       } else if (value && typeof value.type === "string") {
         visit(value);
