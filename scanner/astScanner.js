@@ -243,7 +243,6 @@ export function analyzeAST(source) {
           recommendation:
             "Review the command and its arguments. Avoid shell execution with untrusted input; prefer fixed executables, validated arguments, and shell:false where supported."
         });
-
       }
     }
 

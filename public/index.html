@@ -19,13 +19,150 @@
   </header>
 
   <main class="container">
+    
+
+<section id="authPanel" class="auth-panel">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <span class="brand-icon">Z</span>
+      <span class="section-label">ZEROTRACE ACCOUNT</span>
+    </div>
+
+    <div class="auth-heading">
+      <h2>Secure your workflow.</h2>
+      <p>Sign in to analyze code and access your private scan history.</p>
+    </div>
+
+    <p id="authStatus" class="status-message" role="status" aria-live="polite"></p>
+
+    <div id="authForms">
+        
+<div class="auth-tabs" role="tablist" aria-label="Authentication">
+  <button
+    id="showLoginTab"
+    class="auth-tab active"
+    type="button"
+    role="tab"
+    aria-selected="true"
+    aria-controls="loginForm"
+  >
+    Sign in
+  </button>
+  <button
+    id="showSignupTab"
+    class="auth-tab"
+    type="button"
+    role="tab"
+    aria-selected="false"
+    aria-controls="signupForm"
+  >
+    Create account
+  </button>
+</div>
+
+      <form id="loginForm" class="auth-form">
+        <h3>Welcome back</h3>
+
+        <label for="loginEmail">Email address</label>
+        <input
+          id="loginEmail"
+          name="email"
+          type="email"
+          autocomplete="username"
+          placeholder="you@company.com"
+          maxlength="254"
+          required
+        >
+
+        <label for="loginPassword">Password</label>
+        <input
+          id="loginPassword"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          placeholder="Enter your password"
+          required
+        >
+
+        <button class="primary-btn auth-submit" type="submit">
+          Sign in
+        </button>
+      </form>
+
+      <div class="auth-divider"><span>NEW TO ZEROTRACE?</span></div>
+
+      <form id="signupForm" class="auth-form">
+        <h3>Create your account</h3>
+
+        <label for="signupEmail">Work or personal email</label>
+        <input
+          id="signupEmail"
+          name="email"
+          type="email"
+          autocomplete="email"
+          placeholder="you@company.com"
+          maxlength="254"
+          required
+        >
+
+        <label for="signupPassword">Create password</label>
+        <input
+          id="signupPassword"
+          name="password"
+          type="password"
+          autocomplete="new-password"
+          minlength="12"
+          placeholder="At least 12 characters"
+          required
+        >
+
+        <button class="secondary-btn auth-submit" type="submit">
+          Create account
+        </button>
+      </form>
+    </div>
+
+    <div id="loggedInPanel" class="logged-in-panel" hidden>
+      <div class="auth-success-mark">✓</div>
+      <h3>You're signed in</h3>
+      <p>Account: <strong id="loggedInEmail"></strong></p>
+      <button id="logoutBtn" class="secondary-btn auth-submit" type="button">
+        Sign out
+      </button>
+    </div>
+
+    <p class="auth-footnote">
+      Your password is hashed before storage. Never share your credentials.
+    </p>
+  </div>
+</section>
+
+<section id="scanHistoryPanel" class="panel scan-history-panel" hidden>
+  <div class="panel-heading">
+    <div>
+      <span class="section-label">YOUR ACTIVITY</span>
+      <h2>Scan history</h2>
+      <p>Review your recent security scans.</p>
+    </div>
+
+    <button id="refreshHistoryBtn" class="secondary-btn" type="button">
+      Refresh
+    </button>
+  </div>
+
+  <p id="historyStatus" class="status-message" role="status" aria-live="polite"></p>
+
+  <div id="scanHistoryList"></div>
+</section>
+
+
     <section class="hero">
       <div class="eyebrow">STATIC ANALYSIS · AST + SECURITY RULES</div>
       <h1>Find risky code <span>before it ships.</span></h1>
       <p>Analyze JavaScript for potentially unsafe patterns, understand the risks, and get practical recommendations.</p>
     </section>
 
-    <section class="workspace">
+    <section id="scannerWorkspace" class="workspace" hidden>
       <div class="panel editor-panel">
         <div class="panel-heading">
           <div>
@@ -43,10 +180,70 @@
           <span>JavaScript · Max 50,000 characters</span>
         </div>
 
-        <button id="scanBtn" class="primary-btn" type="button">
-          <span>⌕</span> Analyze source code
-        </button>
-        <p id="scanStatus" class="status-message" role="status" aria-live="polite"></p>
+        <div class="action-buttons">
+  <button id="scanBtn" class="primary-btn" type="button">
+    <span>⌕</span> Analyze source code
+  </button>
+
+  <button id="aiFixBtn" class="secondary-btn" type="button">
+    ✨ AI Fix
+  </button>
+</div>
+
+<p id="scanStatus" class="status-message" role="status" aria-live="polite"></p>
+<p id="aiFixStatus" class="status-message" role="status" aria-live="polite"></p>
+
+<section id="aiFixPanel" class="ai-fix-panel" hidden>
+  <h3>AI-proposed fix</h3>
+  <p id="aiFixSummary"></p>
+  <div id="aiRescanPanel" class="ai-rescan-panel" hidden>
+  <h4>Validation of proposed code</h4>
+
+  <p id="syntaxStatus" role="status"></p>
+
+  <h4>Security scan</h4>
+  <p id="aiRescanStatus" role="status"></p>
+  <div id="aiRescanResults"></div>
+</div>
+  <label for="fixedCodeOutput">Proposed JavaScript</label>
+  <textarea id="fixedCodeOutput" spellcheck="false" readonly></textarea>
+
+  <div class="action-buttons">
+    <button id="applyFixBtn" class="primary-btn" type="button">
+      Use proposed code
+    </button>
+    <button id="copyFixBtn" class="secondary-btn" type="button">
+      Copy proposed code
+    </button>
+    <button id="downloadFixBtn" class="secondary-btn" type="button">
+  Download fixed code
+</button>
+  </div>
+
+  <p class="status-message">
+  AI-generated code may introduce errors or new vulnerabilities. Review and test it before using it.
+</p>
+
+<div id="codeComparison" class="code-comparison" hidden>
+  <h3>Before and after</h3>
+  <div class="diff-section">
+  <h4>Line-by-line changes</h4>
+  <pre id="diffOutput" class="diff-output" aria-live="polite"></pre>
+</div>
+
+  <div class="comparison-grid">
+    <div>
+      <label for="originalCodeOutput">Original code</label>
+      <textarea id="originalCodeOutput" spellcheck="false" readonly></textarea>
+    </div>
+
+    <div>
+      <label for="comparisonFixedCode">AI-proposed code</label>
+      <textarea id="comparisonFixedCode" spellcheck="false" readonly></textarea>
+    </div>
+  </div>
+</div>
+</section>
       </div>
 
       <div class="panel results-panel">
