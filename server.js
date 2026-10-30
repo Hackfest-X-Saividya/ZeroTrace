@@ -18,7 +18,9 @@ import MongoStore from "connect-mongo";
 const app = express();
 
 app.set("trust proxy", 1);
-
+if (process.env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
 app.use(
   session({
     name: "zerotrace.sid",
@@ -689,8 +691,8 @@ async function startServer() {
   try {
     await connectToDatabase();
 
-    app.listen(PORT, () => {
-      console.log(`ZeroTrace server running on http://localhost:${PORT}`);
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`ZeroTrace server running on port ${PORT}`);
     });
   } catch (error) {
     console.error("Failed to start ZeroTrace:", error.message);
