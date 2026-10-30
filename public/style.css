@@ -1089,7 +1089,7 @@ textarea:focus {
 }
 
 /* ==========================================================================
-   Scan History & Security Memory Bento Grid
+   Scan History & Security Memory Bento Grid (with Scrollable Scan Trend)
    ========================================================================== */
 
 .history-card {
@@ -1167,6 +1167,8 @@ textarea:focus {
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-md);
   background: rgba(6, 10, 19, 0.65);
+  display: flex;
+  flex-direction: column;
 }
 
 .memory-subsection h3 {
@@ -1178,6 +1180,36 @@ textarea:focus {
   margin: 0 0 12px;
   color: var(--text-secondary);
   font-size: 12px;
+}
+
+#memoryTrendList,
+#memoryRecurringList {
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 8px;
+  scrollbar-gutter: stable;
+}
+
+#memoryTrendList::-webkit-scrollbar,
+#memoryRecurringList::-webkit-scrollbar {
+  width: 6px;
+}
+
+#memoryTrendList::-webkit-scrollbar-track,
+#memoryRecurringList::-webkit-scrollbar-track {
+  background: rgba(5, 8, 17, 0.8);
+  border-radius: var(--radius-pill);
+}
+
+#memoryTrendList::-webkit-scrollbar-thumb,
+#memoryRecurringList::-webkit-scrollbar-thumb {
+  background: rgba(0, 242, 254, 0.3);
+  border-radius: var(--radius-pill);
+}
+
+#memoryTrendList::-webkit-scrollbar-thumb:hover,
+#memoryRecurringList::-webkit-scrollbar-thumb:hover {
+  background: var(--cyan);
 }
 
 .memory-item,
